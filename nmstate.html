@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NMState manifests — luke</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>NMState manifests</h1>
+    <p class="subtitle">One file per node, each base64-embedded in a MachineConfig and written to
+      <code>/etc/nmstate/openshift/&lt;node&gt;.yml</code>. NMState reads every file under that directory.</p>
+  </header>
+
+  <main>
+    <section id="layout">
+      <h2>Why per-node files</h2>
+      <p>The two control nodes share the same uplink topology (bond0 &rarr; VLAN 40 &rarr; br-ex) but have different
+      primary IPs on the same L2 segment, so a single shared <code>cluster.yml</code> cannot carry both. Each node gets
+      its own file:</p>
+      <table>
+        <tr><th>Node</th><th>NMState file</th><th>MachineConfig</th><th>br-ex IPs</th></tr>
+        <tr>
+          <td>control01.syangsao.net</td>
+          <td><a href="nmstate/control01-br-ex.yaml">control01-br-ex.yaml</a></td>
+          <td><a href="machineconfigs/control01-br-ex-nmstate.yaml">99-control01-br-ex-nmstate</a></td>
+          <td>192.168.40.26/24, 169.254.0.2/17</td>
+        </tr>
+        <tr>
+          <td>control02.syangsao.net</td>
+          <td><a href="nmstate/control02-br-ex.yaml">control02-br-ex.yaml</a></td>
+          <td><a href="machineconfigs/control02-br-ex-nmstate.yaml">99-control02-br-ex-nmstate</a></td>
+          <td>192.168.40.27/24, 169.254.0.2/17 (+ .28/.29 /32)</td>
+        </tr>
+        <tr>
+          <td>arbiter.syangsao.net</td>
+          <td><a href="nmstate/arbiter-br-ex.yaml">arbiter-br-ex.yaml</a></td>
+          <td><a href="machineconfigs/arbiter-br-ex-nmstate.yaml">99-arbiter-br-ex-nmstate</a></td>
+          <td>192.168.40.25/24, 169.254.0.2/17</td>
+        </tr>
+      </table>
+    </section>
+
+    <section id="master">
+      <h2>Control nodes — topology</h2>
+      <table>
+        <tr><th>Interface</th><th>Type</th><th>Key settings</th></tr>
+        <tr><td>eno1, eno2</td><td>ethernet</td><td>mtu 1500, no IP</td></tr>
+        <tr><td>bond0</td><td>bond</td><td>802.3ad, lacp_rate slow, miimon 100, xmit_hash_policy layer2, mtu 1500</td></tr>
+        <tr><td>bond0.40</td><td>vlan (id 40 on bond0)</td><td>mtu 1500, no IP</td></tr>
+        <tr><td>br-ex</td><td>ovs-interface on bond0.40</td><td>mtu 1500; node-specific IPs above</td></tr>
+      </table>
+    </section>
+
+    <section id="arbiter">
+      <h2>Arbiter — topology</h2>
+      <table>
+        <tr><th>Interface</th><th>Type</th><th>Key settings</th></tr>
+        <tr><td>ens192</td><td>ethernet (vmxnet3, single NIC)</td><td>mtu 1500, no IP</td></tr>
+        <tr><td>br-ex</td><td>ovs-interface on ens192</td><td>mtu 1500; 192.168.40.25/24 + 169.254.0.2/17</td></tr>
+      </table>
+    </section>
+
+    <section id="rules">
+      <h2>Rules these files follow</h2>
+      <ul>
+        <li><strong>MTU declared on every interface</strong> (1500, matching current state) — Red Hat requires explicit MTU.</li>
+        <li><strong>Masquerade address preserved:</strong> 169.254.0.2/17 is the OVN-Kubernetes masquerade IP; removing it
+          breaks pod egress.</li>
+        <li><strong>Patch port omitted:</strong> <code>patch-br-ex_&lt;node&gt;-to-br-int</code> is created by ovn-kubernetes
+          at runtime — listing it in the NMState file would conflict with the OVN controller.</li>
+        <li><strong>Default route not declared:</strong> 0.0.0.0/0 via 192.168.40.1 (metric 150) is managed by OVN's
+          configure-ovs routing; it survives the migration and must not be re-declared here.</li>
+        <li><strong>VLANs 60/80/90 untouched:</strong> they carry VM data traffic on br-vmdata, outside br-ex's scope.</li>
+      </ul>
+
+      <div class="note">
+        <strong>control02 extra addresses.</strong> control02 currently also carries 192.168.40.28/32 and
+        192.168.40.29/32 on br-ex (likely VIPs for the API/ingress load balancer). They are <em>not</em> included in
+        control02's NMState file because they were added by OVN's routing setup, not by configure-ovs.sh — if they
+          disappear after the migration, re-add them via a NodeNetworkConfigurationPolicy or extend the address list.
+      </div>
+    </section>
+
+    <footer><p><a href="/">Back to overview</a></p></footer>
+  </main>
+</body>
+</html>

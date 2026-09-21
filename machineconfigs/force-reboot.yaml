@@ -1,0 +1,55 @@
+# Bare MachineConfigs that force a reboot of every node in each pool.
+# Apply AFTER the br-ex NMState MCs are applied, then delete after nodes return to Ready.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: master
+  name: 10-force-reboot-master
+spec:
+  config:
+    ignition:
+      version: 3.5.0
+    storage:
+      files:
+      - contents:
+          source: data:text/plain;charset=utf-8;base64,
+        mode: 0644
+        overwrite: true
+        path: /etc/force-reboot
+---
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: worker
+  name: 10-force-reboot-worker
+spec:
+  config:
+    ignition:
+      version: 3.5.0
+    storage:
+      files:
+      - contents:
+          source: data:text/plain;charset=utf-8;base64,
+        mode: 0644
+        overwrite: true
+        path: /etc/force-reboot
+---
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: arbiter
+  name: 10-force-reboot-arbiter
+spec:
+  config:
+    ignition:
+      version: 3.5.0
+    storage:
+      files:
+      - contents:
+          source: data:text/plain;charset=utf-8;base64,
+        mode: 0644
+        overwrite: true
+        path: /etc/force-reboot

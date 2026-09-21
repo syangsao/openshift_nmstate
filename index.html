@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Migrating br-ex to NMState — luke</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>br-ex &rarr; NMState migration</h1>
+    <p class="subtitle">OCP cluster <strong>luke</strong> (4.20, RHCOS 9.8) — moving the external bridge from
+      <code>configure-ovs.sh</code> to a declarative NMState configuration.</p>
+  </header>
+
+  <main>
+    <section id="summary">
+      <h2>Current state (verified 2026-09-21)</h2>
+      <table>
+        <tr><th>Node</th><th>Role</th><th>br-ex uplink</th><th>br-ex IPs</th><th>MTU</th></tr>
+        <tr>
+          <td>control01.syangsao.net</td><td>master+worker</td>
+          <td>bond0 (802.3ad: eno1, eno2) &rarr; VLAN 40</td>
+          <td>192.168.40.26/24, 169.254.0.2/17</td><td>1500</td>
+        </tr>
+        <tr>
+          <td>control02.syangsao.net</td><td>master+worker</td>
+          <td>bond0 (802.3ad: eno1, eno2) &rarr; VLAN 40</td>
+          <td>192.168.40.27/24, 169.254.0.2/17 (+ .28/.29 /32)</td><td>1500</td>
+        </tr>
+        <tr>
+          <td>arbiter.syangsao.net</td><td>arbiter</td>
+          <td>ens192 (single NIC, no bond)</td>
+          <td>192.168.40.25/24, 169.254.0.2/17</td><td>1500</td>
+        </tr>
+      </table>
+
+      <ul>
+        <li>Default gateway: <code>192.168.40.1</code>, metric 150 (managed by OVN, not the NMState file).</li>
+        <li><code>169.254.0.2/17</code> is the OVN-Kubernetes masquerade address — must be preserved.</li>
+        <li>bond0 on control nodes: 802.3ad, LACP slow, miimon 100, xmit_hash_policy layer2; also carries
+          VLANs 60/80/90 (VM data) — those are <em>not</em> part of br-ex and are left untouched.</li>
+        <li>No existing OVS MachineConfig or NMState files on any node; the migration is a clean one-way switch.</li>
+      </ul>
+    </section>
+
+    <section id="plan">
+      <h2>The plan</h2>
+      <ol>
+        <li><a href="/nmstate.html">NMState manifests</a> — one file per node (control01, control02, arbiter), each
+          base64-embedded in a MachineConfig and written to <code>/etc/nmstate/openshift/&lt;node&gt;.yml</code>.
+          Per-node IPs stay exactly as they are; nothing changes functionally.</li>
+        <li><a href="/migration.html">Step-by-step procedure</a> — apply the three MCs, force-reboot each pool in order
+          (master &rarr; arbiter), verify with <code>nmstatectl show br-ex</code>.</li>
+      </ol>
+
+      <div class="warning">
+        <strong>One-way door.</strong> Once the NMState file is applied, <code>configure-ovs.sh</code> will skip on
+        every boot (<code>/etc/nmstate/openshift/applied</code> exists) and you cannot migrate back to the shell-script
+        version. A misconfiguration can break node networking — do this in a maintenance window with console access
+        (iDRAC/iLO) available.
+      </div>
+
+      <div class="warning">
+        <strong>IPs are immutable.</strong> Red Hat does not support changing node IPs post-installation. The
+        migration preserves every existing address exactly as it is today.
+      </div>
+    </section>
+
+    <footer>
+      <p>Reference: <a href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/bare-metal-post-installation-configuration#migrating-br-ex-bridge-nmstate_bare-metal-postinstallation-configuration">
+      OCP 4.20 — Migrating a configured br-ex bridge to NMState</a></p>
+    </footer>
+  </main>
+</body>
+</html>

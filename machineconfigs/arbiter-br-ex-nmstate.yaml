@@ -1,0 +1,19 @@
+# MachineConfig: embeds nmstate/arbiter-br-ex.yaml (base64) into /etc/nmstate/openshift/cluster.yml
+# on the arbiter pool. Apply with: oc apply -f machineconfigs/arbiter-br-ex-nmstate.yaml
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: arbiter
+  name: 99-arbiter-br-ex-nmstate
+spec:
+  config:
+    ignition:
+      version: 3.5.0
+    storage:
+      files:
+      - contents:
+          source: data:text/plain;charset=utf-8;base64,IyBOTVN0YXRlIGNvbmZpZ3VyYXRpb24gZm9yIGJyLWV4IG9uIGFyYml0ZXIuc3lhbmdzYW8ubmV0IChhcmJpdGVyIHBvb2wpLgojIFdyaXR0ZW4gdG8gL2V0Yy9ubXN0YXRlL29wZW5zaGlmdC9jbHVzdGVyLnltbCB2aWEgTWFjaGluZUNvbmZpZyA5OS1hcmJpdGVyLWJyLWV4LW5tc3RhdGUuCiMgTWlycm9ycyB0aGUgY3VycmVudCBjb25maWd1cmUtb3ZzLnNoIHJlc3VsdCBleGFjdGx5OiBlbnMxOTIgLT4gYnItZXggKG5vIGJvbmQsIG5vIFZMQU4pLgojIE5PVEU6IHBhdGNoLWJyLWV4Xzxub2RlPi10by1ici1pbnQgaXMgY3JlYXRlZCBieSBvdm4ta3ViZXJuZXRlcyBhdCBydW50aW1lIGFuZCBtdXN0IE5PVCBiZSBsaXN0ZWQgaGVyZS4KaW50ZXJmYWNlczoKLSBuYW1lOiBlbnMxOTIKICB0eXBlOiBldGhlcm5ldAogIHN0YXRlOiB1cAogIG10dTogMTUwMAogIGlwdjQ6CiAgICBlbmFibGVkOiBmYWxzZQogIGlwdjY6CiAgICBlbmFibGVkOiBmYWxzZQotIG5hbWU6IGJyLWV4CiAgdHlwZTogb3ZzLWludGVyZmFjZQogIHN0YXRlOiB1cAogIGNvbnRyb2xsZXI6IGVuczE5MgogIG10dTogMTUwMAogIGlwdjQ6CiAgICBlbmFibGVkOiB0cnVlCiAgICBkaGNwOiBmYWxzZQogICAgYXV0by1yb3V0ZS1tZXRyaWM6IDQ4CiAgICBwcmVmaXgtcm91dGUtbWV0cmljOiA0OAogICAgYWRkcmVzczoKICAgICMgYXJiaXRlcgogICAgLSBpcDogMTkyLjE2OC40MC4yNQogICAgICBwcmVmaXgtbGVuZ3RoOiAyNAogICAgIyBPVk4tS3ViZXJuZXRlcyBtYXNxdWVyYWRlIGFkZHJlc3Mg4oCUIHJlcXVpcmVkLCBkbyBub3QgcmVtb3ZlCiAgICAtIGlwOiAxNjkuMjU0LjAuMgogICAgICBwcmVmaXgtbGVuZ3RoOiAxNwogIGlwdjY6CiAgICBlbmFibGVkOiBmYWxzZQo=
+        mode: 0644
+        overwrite: true
+        path: /etc/nmstate/openshift/cluster.yml

@@ -1,0 +1,32 @@
+# NMState configuration for br-ex on arbiter.syangsao.net (arbiter pool).
+# Written to /etc/nmstate/openshift/cluster.yml via MachineConfig 99-arbiter-br-ex-nmstate.
+# Mirrors the current configure-ovs.sh result exactly: ens192 -> br-ex (no bond, no VLAN).
+# NOTE: patch-br-ex_<node>-to-br-int is created by ovn-kubernetes at runtime and must NOT be listed here.
+interfaces:
+- name: ens192
+  type: ethernet
+  state: up
+  mtu: 1500
+  ipv4:
+    enabled: false
+  ipv6:
+    enabled: false
+- name: br-ex
+  type: ovs-interface
+  state: up
+  controller: ens192
+  mtu: 1500
+  ipv4:
+    enabled: true
+    dhcp: false
+    auto-route-metric: 48
+    prefix-route-metric: 48
+    address:
+    # arbiter
+    - ip: 192.168.40.25
+      prefix-length: 24
+    # OVN-Kubernetes masquerade address — required, do not remove
+    - ip: 169.254.0.2
+      prefix-length: 17
+  ipv6:
+    enabled: false

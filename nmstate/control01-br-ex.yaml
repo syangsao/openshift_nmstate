@@ -1,0 +1,67 @@
+# NMState configuration for br-ex on control01.syangsao.net.
+# Written to /etc/nmstate/openshift/control01.yml via MachineConfig 99-control01-br-ex-nmstate.
+# Mirrors the current configure-ovs.sh result exactly: bond0 (802.3ad) -> VLAN 40 -> br-ex.
+# NOTE: patch-br-ex_<node>-to-br-int is created by ovn-kubernetes at runtime and must NOT be listed here.
+interfaces:
+- name: eno1
+  type: ethernet
+  state: up
+  mtu: 1500
+  ipv4:
+    enabled: false
+  ipv6:
+    enabled: false
+- name: eno2
+  type: ethernet
+  state: up
+  mtu: 1500
+  ipv4:
+    enabled: false
+  ipv6:
+    enabled: false
+- name: bond0
+  type: bond
+  state: up
+  mtu: 1500
+  link-aggregation:
+    mode: 802.3ad
+    port:
+    - eno1
+    - eno2
+    options:
+      lacp_rate: slow
+      miimon: 100
+      xmit_hash_policy: layer2
+  ipv4:
+    enabled: false
+  ipv6:
+    enabled: false
+- name: bond0.40
+  type: vlan
+  state: up
+  mtu: 1500
+  vlan:
+    base-iface: bond0
+    id: 40
+  ipv4:
+    enabled: false
+  ipv6:
+    enabled: false
+- name: br-ex
+  type: ovs-interface
+  state: up
+  controller: bond0.40
+  mtu: 1500
+  ipv4:
+    enabled: true
+    dhcp: false
+    auto-route-metric: 48
+    prefix-route-metric: 48
+    address:
+    - ip: 192.168.40.26
+      prefix-length: 24
+    # OVN-Kubernetes masquerade address — required, do not remove
+    - ip: 169.254.0.2
+      prefix-length: 17
+  ipv6:
+    enabled: false

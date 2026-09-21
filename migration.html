@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Migration procedure — luke</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>Migration procedure</h1>
+    <p class="subtitle">Step-by-step: apply the NMState MachineConfigs, force-reboot each pool in order, verify.</p>
+  </header>
+
+  <main>
+    <section id="prereqs">
+      <h2>Prerequisites</h2>
+      <ul>
+        <li>Maintenance window scheduled — every node reboots once; pods/VMs lose external connectivity briefly per node.</li>
+        <li>Console access (iDRAC/iLO) to each node available in case of a network misconfiguration.</li>
+        <li><code>oc</code> logged in as cluster-admin: <code>oc whoami</code></li>
+        <li>All nodes currently <code>Ready</code>: <code>oc get nodes</code></li>
+      </ul>
+
+      <div class="note">
+        <strong>Reboot order matters.</strong> control01 and control02 both carry the master+worker role, so a single
+        pool reboot takes down both masters at once. etcd quorum is preserved by the arbiter (3rd member), which reboots
+        last. The API will be briefly degraded during the master pool reboot — schedule accordingly.
+      </div>
+    </section>
+
+    <section id="step1">
+      <h2>Step 1 — Apply the br-ex NMState MachineConfigs</h2>
+      <pre><code>oc apply -f machineconfigs/control01-br-ex-nmstate.yaml
+oc apply -f machineconfigs/control02-br-ex-nmstate.yaml
+oc apply -f machineconfigs/arbiter-br-ex-nmstate.yaml</code></pre>
+      <p>This writes <code>/etc/nmstate/openshift/control01.yml</code>, <code>control02.yml</code>, and
+      <code>cluster.yml</code> to the pending config of each pool. Nothing changes on nodes until they reboot.</p>
+    </section>
+    <section id="step2">
+      <h2>Step 2 — Force-reboot the master pool (control01 + control02)</h2>
+      <p><a href="machineconfigs/force-reboot.yaml">force-reboot.yaml</a> contains three documents. Split it into per-pool
+      files, then apply only the master one:</p>
+      <pre><code># force-reboot-master.yaml  = document "10-force-reboot-master"
+# force-reboot-arbiter.yaml  = document "10-force-reboot-arbiter"
+
+oc apply -f force-reboot-master.yaml
+watch oc get nodes   # both masters go NotReady, then back to Ready (~5-10 min)</code></pre>
+      <p><strong>Gate:</strong> wait until <em>both</em> control nodes are <code>Ready</code> before proceeding.</p>
+    </section>
+    <section id="step3">
+      <h2>Step 3 — Force-reboot the arbiter</h2>
+      <pre><code>oc apply -f force-reboot-arbiter.yaml
+watch oc get nodes   # arbiter goes NotReady, then back to Ready</code></pre>
+    </section>
+
+    <section id="step4">
+      <h2>Step 4 — Clean up the force-reboot MachineConfigs</h2>
+      <pre><code>oc delete machineconfig 10-force-reboot-master
+oc delete machineconfig 10-force-reboot-arbiter
+# (delete 10-force-reboot-worker only if you applied it; luke has no separate worker pool)</code></pre>
+    </section>
+
+    <section id="verify">
+      <h2>Verification</h2>
+      <p>On each node, confirm NMState now owns br-ex and the config matches what was there before:</p>
+      <pre><code># control01 (control02 identical except IP 192.168.40.27 and file name)
+oc debug node/control01.syangsao.net -- chroot host sh -c \
+  "nmstatectl show br-ex | grep -v INFO; ls /etc/nmstate/openshift/"
+#   br-ex (ovs-bridge) with ports bond0.40 + patch-br-ex_control01...-to-br-int
+#   br-ex (ovs-interface) 192.168.40.26/24, 169.254.0.2/17, mtu 1500
+#   /etc/nmstate/openshift/applied  exists
+
+# arbiter
+oc debug node/arbiter.syangsao.net -- chroot host sh -c \
+  "nmstatectl show br-ex | grep -v INFO; ls /etc/nmstate/openshift/"
+
+# Expected: ens192 -> br-ex, 192.168.40.25/24, 169.254.0.2/17</code></pre>
+      <p>Cluster-level checks:</p>
+      <pre><code>oc get nodes                          # all Ready
+oc get pods -A | grep -v Running      # no stuck pods
+ping -c 3 192.168.40.1                # external gateway reachable from a node
+oc rsh $(oc get node control01.syangsao.net -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}') \
+  ping -c 3 &lt;any-external-ip&gt;</code></pre>
+      <p>Confirm configure-ovs.sh now skips on every boot (it sees the applied flag):</p>
+      <pre><code>oc debug node/control01.syangsao.net -- chroot host \
+  grep -q applied /etc/nmstate/openshift/applied &amp;&amp; echo "NMState owns br-ex"</code></pre>
+    </section>
+
+    <section id="rollback">
+      <h2>If something goes wrong</h2>
+      <ul>
+        <li><strong>Node can't reach the API after reboot:</strong> use iDRAC/iLO console. The NMState file is at
+          <code>/etc/nmstate/openshift/cluster.yml</code>; you can edit it on-disk, then re-apply a corrected MachineConfig
+          once the node is reachable. Deleting the file and rebooting restores the pre-migration state because
+          configure-ovs.sh runs again when <code>/etc/nmstate/openshift/applied</code> is absent.</li>
+        <li><strong>One node bad, others fine:</strong> cordon it, fix its MC (nodeSelector-style per-node MCs are not used
+          here — the fix is a corrected pool-wide MC + targeted reboot of that node via
+          <code>oc debug</code> console or by deleting its MachineConfig record and re-applying).</li>
+        <li><strong>Full revert:</strong> delete both br-ex NMState MachineConfigs, delete the applied flag on each node
+          (<code>chroot host rm /etc/nmstate/openshift/applied</code>), force-reboot all pools. configure-ovs.sh rebuilds
+          the original bridge from its keyfiles.</li>
+      </ul>
+    </section>
+
+    <footer><p><a href="/">Back to overview</a></p></footer>
+  </main>
+</body>
+</html>
