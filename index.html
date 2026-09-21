@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Migrating br-ex to NMState — luke</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
@@ -47,10 +47,10 @@
     <section id="plan">
       <h2>The plan</h2>
       <ol>
-        <li><a href="/nmstate.html">NMState manifests</a> — one file per node (control01, control02, arbiter), each
+        <li><a href="nmstate.html">NMState manifests</a> — one file per node (control01, control02, arbiter), each
           base64-embedded in a MachineConfig and written to <code>/etc/nmstate/openshift/&lt;node&gt;.yml</code>.
           Per-node IPs stay exactly as they are; nothing changes functionally.</li>
-        <li><a href="/migration.html">Step-by-step procedure</a> — apply the three MCs, force-reboot each pool in order
+        <li><a href="migration.html">Step-by-step procedure</a> — apply the three MCs, force-reboot each pool in order
           (master &rarr; arbiter), verify with <code>nmstatectl show br-ex</code>.</li>
       </ol>
 
